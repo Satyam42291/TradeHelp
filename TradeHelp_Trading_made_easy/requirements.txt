@@ -2,5 +2,4 @@ streamlit
 datetime
 yfinance
 prophet
-prophet.plot
 plotly
