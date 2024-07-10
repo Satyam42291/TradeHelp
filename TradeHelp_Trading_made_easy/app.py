@@ -14,7 +14,7 @@ st.title('TradeHelp - Trading made easy ;)')
 
 user_input=st.text_input('Enter Stock Ticker (as per Yahoo finance)', 'AAPL')
 
-n_years= st.slider("Years of Prediction:", 1, 4)
+n_years= st.slider("Years of Prediction:", 1, 5)
 period= n_years*365
 
 @st.cache_data
