@@ -1,176 +1,46 @@
-# import yfinance as yf
-# from prophet import Prophet
-# from prophet.plot import plot_plotly
-# from plotly import graph_objs as go
-# import streamlit as st
-# from datetime import date
-# import pandas as pd
-
-# start = '2000-01-01'
-# today = date.today().strftime("%Y-%m-%d")
-
-# st.title('📈 TradeHelp - Trading made easy')
-
-# popular_tickers = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']
-# user_input = st.selectbox('Choose or enter a stock ticker:', popular_tickers, index=0)
-
-# n_years = st.slider("Years of Prediction:", 1, 4)
-# period = n_years * 365
-
-# @st.cache_data
-# def load_data(ticker):
-#     try:
-#         data = yf.download(ticker, start=start, end=today, auto_adjust=True)
-
-#         # Fix multi-index columns from yfinance >= 0.2.51
-#         if isinstance(data.columns, pd.MultiIndex):
-#             data.columns = ['_'.join(col).strip() for col in data.columns.values]
-
-#         if data.empty:
-#             return None
-
-#         data.reset_index(inplace=True)
-#         return data
-#     except Exception as e:
-#         st.error("❌ Failed to fetch data: " + str(e))
-#         return None
-
-# data_load_state = st.text("Loading data...")
-# data = load_data(user_input)
-
-# if data is None:
-#     st.error("📉 Could not fetch stock data. The ticker may be invalid, or Yahoo Finance may be facing issues.")
-#     st.stop()
-
-# data_load_state.text("✅ Data loaded successfully!")
-
-# st.subheader("Raw data")
-# st.write(data.tail())
-
-# def plot_raw_data():
-#     fig = go.Figure()
-#     fig.add_trace(go.Scatter(x=data['Date'], y=data['Open_AAPL'], name="Open"))
-#     fig.add_trace(go.Scatter(x=data['Date'], y=data['Close_AAPL'], name="Close"))
-#     fig.update_layout(title_text='📊 Time Series Data', 
-#                       xaxis_rangeslider_visible=True,
-#                       xaxis_title='Date',
-#                       yaxis_title='Price')
-#     st.plotly_chart(fig)
-
-# # Dynamically detect columns for selected ticker
-# close_col = [col for col in data.columns if 'Close' in col][0]
-# open_col = [col for col in data.columns if 'Open' in col][0]
-
-# plot_raw_data = lambda: st.plotly_chart(
-#     go.Figure([
-#         go.Scatter(x=data['Date'], y=data[open_col], name="Open"),
-#         go.Scatter(x=data['Date'], y=data[close_col], name="Close")
-#     ]).update_layout(
-#         title='📊 Time Series Data',
-#         xaxis_title='Date', yaxis_title='Price',
-#         xaxis_rangeslider_visible=True
-#     )
-# )
-
-# plot_raw_data()
-
-# # Moving Averages
-# ma100 = data[close_col].rolling(100).mean()
-# ma200 = data[close_col].rolling(200).mean()
-
-# fig = go.Figure()
-# fig.add_trace(go.Scatter(x=data['Date'], y=ma100, name='100MA', line=dict(color='red')))
-# fig.add_trace(go.Scatter(x=data['Date'], y=ma200, name='200MA', line=dict(color='green')))
-# fig.add_trace(go.Scatter(x=data['Date'], y=data[close_col], name='Close', line=dict(color='blue')))
-# fig.update_layout(
-#     xaxis_rangeslider_visible=True,
-#     width=800, 
-#     height=600,
-#     title='📉 Closing Price with 100MA and 200MA',
-#     xaxis_title='Date',
-#     yaxis_title='Price'
-# )
-# st.plotly_chart(fig)
-
-# # Forecasting with Prophet
-# df_train = data[['Date', close_col]]
-# df_train = df_train.rename(columns={"Date": "ds", close_col: "y"})
-
-# m = Prophet()
-# m.fit(df_train)
-# future = m.make_future_dataframe(periods=period)
-# forecast = m.predict(future)
-
-# st.subheader('📈 Forecast Data')
-# st.write(forecast.tail())
-
-# fig1 = go.Figure()
-# fig1.add_trace(go.Scatter(x=df_train['ds'], y=df_train['y'], mode='lines', name='Actual', line=dict(color='blue')))
-# fig1.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat'], mode='lines', name='Forecast', line=dict(color='green')))
-# fig1.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat_upper'], mode='lines', name='Upper Bound', line=dict(color='red', dash='dash')))
-# fig1.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat_lower'], mode='lines', name='Lower Bound', line=dict(color='orange', dash='dash')))
-
-# fig1.update_layout(
-#     xaxis_rangeslider_visible=True,
-#     width=800,
-#     height=600,
-#     title=f'📉 Forecast plot for {n_years} year(s)',
-#     xaxis_title='Date',
-#     yaxis_title='Price'
-# )
-# st.plotly_chart(fig1)
-
-# st.subheader("🔍 Forecast Components")
-# fig2 = m.plot_components(forecast)
-# st.write(fig2)
-
-# FB PROPHET, RMSE=0.935556, calculation_time=0.659962893 approx.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # app.py
 import yfinance as yf
 from prophet import Prophet
-#from prophet.plot import plot_plotly  # (optional) not used here
 from plotly import graph_objs as go
 import streamlit as st
 from datetime import date
 import pandas as pd
+import matplotlib.pyplot as plt
 
-# --- Config ---
+# ---------------- Config ----------------
 start = '2000-01-01'
 today = date.today().strftime("%Y-%m-%d")
 
 st.set_page_config(layout="wide", page_title="TradeHelp")
 st.title('📈 TradeHelp - Trading made easy')
 
+# Popular tickers and an option to type your own
 popular_tickers = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']
-user_input = st.selectbox('Choose or enter a stock ticker:', popular_tickers, index=0, 
-                          options=popular_tickers + ["Type your own..."])
-
-# allow typing a custom ticker if user selected placeholder
-if user_input == "Type your own...":
+choice = st.selectbox('Choose a stock ticker or type your own:', popular_tickers + ['Type my own...'], index=0)
+if choice == 'Type my own...':
     user_input = st.text_input("Enter ticker (e.g. AAPL):", value="AAPL").upper().strip()
+else:
+    user_input = choice
 
 n_years = st.slider("Years of Prediction:", 1, 4)
-period = n_years * 365  # days
+period = n_years * 365  # forecast days
+
+# ----------- Helpers / Safe utils -----------
+def find_column_like(cols, keywords):
+    """Return first column that contains any keyword (case-insensitive) or None."""
+    lower_cols = [c.lower() for c in cols]
+    for kw in keywords:
+        kw_lower = kw.lower()
+        for idx, c in enumerate(lower_cols):
+            if kw_lower in c:
+                return cols[idx]
+    return None
 
 @st.cache_data(show_spinner=False)
 def load_data(ticker: str):
+    """Download stock data and normalize column names for single vs multi-ticker outputs."""
     try:
         data = yf.download(ticker, start=start, end=today, auto_adjust=True)
-        # Fix multi-index columns from yfinance >= 0.2.51
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = ['_'.join(col).strip() for col in data.columns.values]
         data.reset_index(inplace=True)
@@ -178,56 +48,49 @@ def load_data(ticker: str):
             return None
         return data
     except Exception as e:
-        # return exception message for better debugging upstream
+        # return an object that signals an error for clearer handling upstream
         return {"error": str(e)}
 
+# ---------------- Load data ----------------
 data_load_state = st.text("Loading data...")
-data_or_err = load_data(user_input)
+raw = load_data(user_input)
 
-# handle errors
-if data_or_err is None:
-    st.error("📉 Could not fetch stock data. The ticker may be invalid, or Yahoo Finance may be facing issues.")
+if raw is None:
+    st.error("📉 Could not fetch stock data. The ticker may be invalid or Yahoo Finance may be unreachable.")
     st.stop()
-if isinstance(data_or_err, dict) and data_or_err.get("error"):
-    st.error("❌ Failed to fetch data: " + data_or_err["error"])
+if isinstance(raw, dict) and raw.get("error"):
+    st.error("❌ Failed to fetch data: " + raw["error"])
     st.stop()
 
-data = data_or_err
+data = raw
 data_load_state.text("✅ Data loaded successfully!")
 
-st.subheader("Raw data (last rows)")
+st.subheader("Raw data (last 5 rows)")
 st.write(data.tail())
 
-# Robust detection of open/close columns
-def find_column_like(cols, keywords):
-    for kw in keywords:
-        for c in cols:
-            if kw.lower() in c.lower():
-                return c
-    return None
-
-close_col = find_column_like(data.columns, ['Close', 'Adj Close', 'Close_'])
-open_col = find_column_like(data.columns, ['Open', 'Open_'])
+# --------- Detect columns safely ----------
+close_col = find_column_like(data.columns, ['Close', 'Adj Close', 'close_'])
+open_col = find_column_like(data.columns, ['Open', 'open_'])
 
 if close_col is None or open_col is None:
     st.error("Required price columns (Open/Close) were not found in the downloaded data.")
-    st.write("Found columns:", list(data.columns))
+    st.write("Available columns:", list(data.columns))
     st.stop()
 
-# Time series plot
+# ---------- Plot raw time series ----------
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=data['Date'], y=data[open_col], name="Open"))
 fig.add_trace(go.Scatter(x=data['Date'], y=data[close_col], name="Close"))
 fig.update_layout(
-    title='📊 Time Series Data',
+    title=f'📊 Time Series: {user_input}',
     xaxis_title='Date',
     yaxis_title='Price',
     xaxis_rangeslider_visible=True,
-    width=900, height=500
+    width=1000, height=500
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# Moving averages (handle NaN safely)
+# ---------- Moving averages ----------
 ma100 = data[close_col].rolling(window=100, min_periods=1).mean()
 ma200 = data[close_col].rolling(window=200, min_periods=1).mean()
 
@@ -237,64 +100,69 @@ fig_ma.add_trace(go.Scatter(x=data['Date'], y=ma200, name='200MA'))
 fig_ma.add_trace(go.Scatter(x=data['Date'], y=data[close_col], name='Close'))
 fig_ma.update_layout(
     title='📉 Closing Price with 100MA and 200MA',
-    xaxis_title='Date',
-    yaxis_title='Price',
-    xaxis_rangeslider_visible=True,
-    width=900, height=500
+    xaxis_title='Date', yaxis_title='Price', xaxis_rangeslider_visible=True,
+    width=1000, height=500
 )
 st.plotly_chart(fig_ma, use_container_width=True)
 
-# Prepare data for Prophet
+# ---------- Prepare data for Prophet ----------
 df_train = data[['Date', close_col]].rename(columns={'Date': 'ds', close_col: 'y'})
-# ensure ds is datetime and y is numeric
 df_train['ds'] = pd.to_datetime(df_train['ds'])
 df_train['y'] = pd.to_numeric(df_train['y'], errors='coerce')
 df_train = df_train.dropna()
 
 if df_train.empty:
-    st.error("Training dataframe for Prophet is empty after sanitization.")
+    st.error("Training dataframe is empty after sanitization.")
     st.stop()
 
-# Fit & forecast (cache the forecast result by ticker+period to avoid refitting frequently)
+# Cache training + forecast to avoid retraining on every interaction
 @st.cache_data(show_spinner=True)
 def train_and_forecast(df, periods: int):
-    m = Prophet()
-    m.fit(df)
-    future = m.make_future_dataframe(periods=periods, freq='D')
-    forecast = m.predict(future)
-    return m, forecast
+    model = Prophet()
+    model.fit(df)
+    future = model.make_future_dataframe(periods=periods, freq='D')
+    forecast = model.predict(future)
+    return model, forecast
 
-with st.spinner("Training Prophet model and forecasting..."):
+with st.spinner("Training forecasting model (this may take a moment)..."):
     try:
         model, forecast = train_and_forecast(df_train, period)
     except Exception as e:
-        st.error("❌ Prophet training / prediction failed: " + str(e))
+        st.error("Prophet training/prediction failed: " + str(e))
         st.stop()
 
 st.subheader('📈 Forecast Data (tail)')
 st.write(forecast.tail())
 
-# Plot actual vs forecast
+# ---------- Plot forecast vs actual ----------
 fig_forecast = go.Figure()
 fig_forecast.add_trace(go.Scatter(x=df_train['ds'], y=df_train['y'], mode='lines', name='Actual'))
 fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat'], mode='lines', name='Forecast'))
 fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat_upper'], mode='lines', name='Upper Bound', line=dict(dash='dash')))
 fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat_lower'], mode='lines', name='Lower Bound', line=dict(dash='dash')))
 fig_forecast.update_layout(
-    title=f'📉 Forecast plot for {n_years} year(s)',
-    xaxis_title='Date',
-    yaxis_title='Price',
-    xaxis_rangeslider_visible=True,
-    width=900, height=500
+    title=f'📉 Forecast plot for {n_years} year(s) ({user_input})',
+    xaxis_title='Date', yaxis_title='Price', xaxis_rangeslider_visible=True,
+    width=1000, height=500
 )
 st.plotly_chart(fig_forecast, use_container_width=True)
 
-# Forecast components (matplotlib) - show explicitly with st.pyplot
+# ---------- Forecast components  (matplotlib) ----------
 st.subheader("🔍 Forecast Components")
 try:
     fig_components = model.plot_components(forecast)
-    import matplotlib.pyplot as plt
     st.pyplot(fig_components)
 except Exception as e:
-    st.write("Could not render Prophet components: ", str(e))
+    st.write("Could not render Prophet components:", str(e))
 
+# ---------- Optional: simple performance metric ----------
+# NOTE: This is a naive in-sample metric (for quick diagnostics only)
+try:
+    # Compare model yhat on training dates to actuals (inner join by ds)
+    merged = forecast[['ds', 'yhat']].merge(df_train[['ds', 'y']], on='ds', how='inner')
+    if not merged.empty:
+        mse = ((merged['y'] - merged['yhat']) ** 2).mean()
+        rmse = float(mse ** 0.5)
+        st.write(f"Naive in-sample RMSE: `{rmse:.6f}` (for diagnostic purposes only)")
+except Exception:
+    pass
