@@ -51,22 +51,41 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def load_data(ticker: str):
-    """Download and normalize data. Returns dict with 'df' or 'error' for diagnostics."""
+    """Download and normalize data. Returns dict with 'df' or 'error' for diagnostics.
+
+    If Yahoo Finance appears to be unavailable (common in restricted networks),
+    a small set of canned CSV files inside ``sample_data/`` will be used as a
+    fallback so that the UI still works for demonstration purposes.  The
+    returned dictionary includes a ``source`` key to indicate where the data
+    came from.
+    """
+    ticker_up = ticker.upper()
     try:
-        df = yf.download(ticker, start=start, end=today, auto_adjust=True, progress=False, threads=False)
+        df = yf.download(ticker_up, start=start, end=today, auto_adjust=True, progress=False, threads=False)
         df = normalize_columns(df)
         if df is None or len(df) == 0:
             # try fallback .history()
-            hist = yf.Ticker(ticker).history(start=start, end=today, auto_adjust=True)
+            hist = yf.Ticker(ticker_up).history(start=start, end=today, auto_adjust=True)
             if hist is None or len(hist) == 0:
-                return {"error": "Both yf.download() and Ticker.history() returned empty dataframes."}
+                # both online methods failed; attempt a local sample
+                sample_file = f"sample_data/{ticker_up}.csv"
+                try:
+                    sample_df = pd.read_csv(sample_file, parse_dates=[0])
+                    sample_df = normalize_columns(sample_df)
+                    return {"df": sample_df, "source": "local_sample", "rows": len(sample_df), "cols": list(sample_df.columns)}
+                except FileNotFoundError:
+                    return {"error": "Both yf.download() and Ticker.history() returned empty dataframes."}
             hist = normalize_columns(hist.reset_index())
             return {"df": hist, "source": "history_fallback", "rows": len(hist), "cols": list(hist.columns)}
         # reset_index to make Date a column (consistent shape)
         df_reset = df.reset_index()
         return {"df": df_reset, "source": "download", "rows": len(df_reset), "cols": list(df_reset.columns)}
     except Exception as e:
-        return {"error": str(e)}
+        # explicit message for network issues
+        msg = str(e)
+        if "Failed to get ticker" in msg or "YFTzMissingError" in msg:
+            msg += " (check network connectivity to Yahoo Finance or use sample_data)"
+        return {"error": msg}
 
 def find_price_column(cols, preferred_keywords=('close', 'adj close', 'adj_close', 'close_')):
     """Return first column name that matches any keyword (case-insensitive)."""
