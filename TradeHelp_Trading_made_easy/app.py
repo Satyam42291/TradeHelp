@@ -1,6 +1,42 @@
 # app.py
 import yfinance as yf
 from prophet import Prophet
+# work around `Prophet` bug where stan_backend is not set because of
+# incorrect indentation in 1.1.5/1.3.x.  The hosted environment in
+# Streamlit Cloud uses the package from requirements.txt, which currently
+# still suffers from this issue.  We patch the method at import time so
+# that constructing a Prophet object never raises an AttributeError.
+from prophet import forecaster
+
+def _fixed_load_stan_backend(self, stan_backend):
+    """Replacement for Prophet._load_stan_backend with correct control flow.
+
+    The original implementation mistakenly returned from the recursive
+    helper without assigning ``self.stan_backend`` when ``stan_backend`` was
+    None.  That left the attribute missing and triggered the "no attribute
+    'stan_backend'" error during initialization.
+    """
+    if stan_backend is None:
+        # try every backend in enum until one succeeds
+        for i in forecaster.StanBackendEnum:
+            try:
+                forecaster.logger.debug("Trying to load backend: %s", i.name)
+                # recursion: this call *will* set self.stan_backend on success
+                self._load_stan_backend(i.name)
+                if hasattr(self, "stan_backend"):
+                    return
+            except Exception as e:  # pragma: no cover - defensive
+                forecaster.logger.debug(
+                    "Unable to load backend %s (%s), trying the next one", i.name, e
+                )
+        raise RuntimeError("Could not load any Stan backend")
+    else:
+        self.stan_backend = forecaster.StanBackendEnum.get_backend_class(stan_backend)()
+    forecaster.logger.debug("Loaded stan backend: %s", self.stan_backend.get_type())
+
+# apply monkey patch
+forecaster.Prophet._load_stan_backend = _fixed_load_stan_backend
+
 from plotly import graph_objs as go
 import streamlit as st
 from datetime import date
