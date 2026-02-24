@@ -204,6 +204,24 @@ if df_train.empty:
     st.error("Training dataframe is empty after sanitization.")
     st.stop()
 
+def _prophet_backend_available() -> bool:
+    """Return True if a usable Stan backend is present for prophet.
+
+    In restricted environments (Streamlit Cloud, Codespaces) the CmdStan
+    binaries may not be installed or build tools may be missing.  If the
+    backend cannot be constructed we skip forecasting altogether rather
+    than crashing with an obscure ``'Prophet' object has no attribute
+    'stan_backend'`` message.
+    """
+    try:
+        from prophet import forecaster
+        # only CMDSTANPY is currently supported; try to instantiate it
+        backend_cls = forecaster.StanBackendEnum.get_backend_class("CMDSTANPY")
+        backend_cls()
+        return True
+    except Exception:  # pragma: no cover - best effort
+        return False
+
 @st.cache_data(show_spinner=True)
 def train_and_forecast(df, periods: int):
     m = Prophet()
@@ -212,15 +230,38 @@ def train_and_forecast(df, periods: int):
     forecast = m.predict(future)
     return m, forecast
 
-with st.spinner("Training forecasting model (may take a moment)..."):
-    try:
-        model, forecast = train_and_forecast(df_train, period)
-    except Exception as e:
-        st.error("Prophet training/predict failed: " + str(e))
-        st.stop()
+if not _prophet_backend_available():
+    st.warning(
+        "⚠️ Prophet forecasting is unavailable – `CmdStan` backend could not be "
+        "initialized. This often happens in restricted environments where the "
+        "required binaries cannot be built.\n"
+        "You can still view raw data, but the forecast charts will be skipped."
+    )
+else:
+    with st.spinner("Training forecasting model (may take a moment)..."):
+        try:
+            model, forecast = train_and_forecast(df_train, period)
+        except Exception as e:
+            st.error("Prophet training/predict failed: " + str(e))
+            st.stop()
 
-st.subheader('📈 Forecast Data (tail)')
-st.write(forecast.tail())
+    st.subheader('📈 Forecast Data (tail)')
+    st.write(forecast.tail())
+
+    fig_forecast = go.Figure()
+    fig_forecast.add_trace(go.Scatter(x=df_train['ds'], y=df_train['y'], mode='lines', name='Actual'))
+    fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat'], mode='lines', name='Forecast'))
+    fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat_upper'], mode='lines', name='Upper Bound', line=dict(dash='dash')))
+    fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat_lower'], mode='lines', name='Lower Bound', line=dict(dash='dash')))
+    fig_forecast.update_layout(title=f'📉 Forecast plot for {n_years} year(s) ({user_input})', xaxis_title='Date', yaxis_title='Price', xaxis_rangeslider_visible=True, width=1000, height=500)
+    st.plotly_chart(fig_forecast, use_container_width=True)
+
+    st.subheader("🔍 Forecast Components")
+    try:
+        fig_comp = model.plot_components(forecast)
+        st.pyplot(fig_comp)
+    except Exception as e:
+        st.write("Could not render components:", str(e))
 
 fig_forecast = go.Figure()
 fig_forecast.add_trace(go.Scatter(x=df_train['ds'], y=df_train['y'], mode='lines', name='Actual'))
