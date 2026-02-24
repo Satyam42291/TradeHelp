@@ -67,14 +67,17 @@ def load_data(ticker: str):
             # try fallback .history()
             hist = yf.Ticker(ticker_up).history(start=start, end=today, auto_adjust=True)
             if hist is None or len(hist) == 0:
-                # both online methods failed; attempt a local sample
-                sample_file = f"sample_data/{ticker_up}.csv"
+                # both online methods failed; attempt a local sample using absolute path
+                from pathlib import Path
+                sample_dir = Path(__file__).parent / "sample_data"
+                sample_file = sample_dir / f"{ticker_up}.csv"
                 try:
                     sample_df = pd.read_csv(sample_file, parse_dates=[0])
                     sample_df = normalize_columns(sample_df)
                     return {"df": sample_df, "source": "local_sample", "rows": len(sample_df), "cols": list(sample_df.columns)}
                 except FileNotFoundError:
-                    return {"error": "Both yf.download() and Ticker.history() returned empty dataframes."}
+                    # fall through to return generic error
+                    return {"error": "Both yf.download() and Ticker.history() returned empty dataframes. No local sample found."}
             hist = normalize_columns(hist.reset_index())
             return {"df": hist, "source": "history_fallback", "rows": len(hist), "cols": list(hist.columns)}
         # reset_index to make Date a column (consistent shape)
@@ -84,7 +87,7 @@ def load_data(ticker: str):
         # explicit message for network issues
         msg = str(e)
         if "Failed to get ticker" in msg or "YFTzMissingError" in msg:
-            msg += " (check network connectivity to Yahoo Finance or use sample_data)"
+            msg += " (check network connectivity to Yahoo Finance or ensure sample_data exists)"
         return {"error": msg}
 
 def find_price_column(cols, preferred_keywords=('close', 'adj close', 'adj_close', 'close_')):
