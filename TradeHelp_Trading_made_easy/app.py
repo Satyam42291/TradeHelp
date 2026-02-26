@@ -262,18 +262,3 @@ else:
         st.pyplot(fig_comp)
     except Exception as e:
         st.write("Could not render components:", str(e))
-
-fig_forecast = go.Figure()
-fig_forecast.add_trace(go.Scatter(x=df_train['ds'], y=df_train['y'], mode='lines', name='Actual'))
-fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat'], mode='lines', name='Forecast'))
-fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat_upper'], mode='lines', name='Upper Bound', line=dict(dash='dash')))
-fig_forecast.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat_lower'], mode='lines', name='Lower Bound', line=dict(dash='dash')))
-fig_forecast.update_layout(title=f'📉 Forecast plot for {n_years} year(s) ({user_input})', xaxis_title='Date', yaxis_title='Price', xaxis_rangeslider_visible=True, width=1000, height=500)
-st.plotly_chart(fig_forecast, use_container_width=True)
-
-st.subheader("🔍 Forecast Components")
-try:
-    fig_comp = model.plot_components(forecast)
-    st.pyplot(fig_comp)
-except Exception as e:
-    st.write("Could not render components:", str(e))
